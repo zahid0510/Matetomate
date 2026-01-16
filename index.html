@@ -1,0 +1,947 @@
+<!DOCTYPE html> 
+<html lang="es"> 
+<head> 
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MateTomate Racing</title>
+    <link rel="icon" type="image/png" href="image/logo.png">
+    
+    <style>
+        /* ==================================================================
+           ESTILOS (CSS) - MANTENIDOS IGUAL PORQUE YA FUNCIONAN
+           ================================================================== */
+        body { margin: 0; overflow: hidden; background: black; font-family: 'Segoe UI', sans-serif;}
+        canvas { position: absolute; top: 0; left: 0; display: block; background: black; z-index: 0; }
+        .oculto { display: none !important; }
+
+        /* HUD */
+        #interfaz {
+            position: fixed; top: 0; left: 0; width: 100%; height: 60px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 40px; z-index: 10; background: transparent !important; color: white;
+            font-size: 26px; font-family: 'Konkhmer Sleokchher', cursive;
+            text-shadow: 1px 1px 3px black; pointer-events: none;
+        }
+        #tesoroTiempo {
+            display: flex; margin-top: 7%; flex-direction: column; justify-content: center;
+            align-items: flex-start; gap: 12px; padding: 50px 80px;
+            background-image: url('image/marco.png'); background-size: contain;
+            background-position: center; background-repeat: no-repeat; pointer-events: none;
+        }
+        #miDivdis, #miDivTiempo { background: transparent !important; border: none; margin-bottom: 2px; }
+
+        /* VELOCÍMETRO */
+        #velocimetro { position: fixed; bottom: 30px; right: 30px; z-index: 10; pointer-events: none; }
+        .velocimetro-circulo {
+            width: 180px; height: 180px; background: radial-gradient(circle, #111 30%, #000 100%);
+            border-radius: 50%; border: 8px solid #333; position: relative; overflow: hidden;
+            box-shadow: 0 0 30px rgba(255, 100, 0, 0.6), inset 0 0 20px rgba(0,0,0,0.8);
+        }
+        .aguja {
+            width: 4px; height: 80px; background: linear-gradient(to top, #ff3300, #ffff66);
+            position: absolute; bottom: 50%; left: 50%; transform-origin: bottom center;
+            transform: translateX(-50%) rotate(-90deg); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 15px #ff3300; z-index: 2;
+        }
+        .centro {
+            width: 20px; height: 20px; background: #ff3300; border-radius: 50%;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px #ff6600; z-index: 3;
+        }
+        .velocidad-texto {
+            position: absolute; top: 65%; left: 50%; transform: translateX(-50%);
+            font-size: 20px; font-weight: bold; color: #ff3300;
+            text-shadow: 0 0 15px #ff6600; font-family: 'Arial Black', sans-serif;
+        }
+        .kmh { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #ffffff48; font-size: 18px; font-weight: bold; }
+
+        /* PAUSA */
+        #pauseButton {
+            position: fixed; top: 20px; right: 20px; width: 70px; height: 70px;
+            background: url('Image/botonP.png') center/contain no-repeat; cursor: pointer;
+            z-index: 1000; transition: transform 0.2s; pointer-events: auto !important;
+        }
+        #pauseButton:hover { transform: scale(1.15); }
+        #pauseOverlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px);
+            opacity: 0; pointer-events: none; transition: opacity 0.4s ease; z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #pauseOverlay.active { opacity: 1; pointer-events: all; }
+        #pauseMenu {
+            position: relative; width: 500px; height: 600px; background: url('image/marcoP.png') center/contain no-repeat;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 40px; padding: 80px; transform: scale(0.8); transition: transform 0.4s;
+        }
+        #pauseOverlay.active #pauseMenu { transform: scale(1); }
+        .pause-title { font-family: 'Arial Black', sans-serif; font-size: 56px; color: #fff; text-shadow: 0 0 20px #ff3300; margin: 0; }
+        .volume-container { width: 70%; text-align: center; color: white; font-size: 24px; font-weight: bold; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; height: 15px; border-radius: 10px; background: #333; margin: 15px 0; outline: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%; background: #ff3300; cursor: pointer; }
+        .pause-btn {
+            background: linear-gradient(145deg, #ff3300, #ff6600); color: white; border: none;
+            padding: 16px 40px; font-size: 24px; font-weight: bold; border-radius: 50px;
+            cursor: pointer; box-shadow: 0 8px 15px rgba(0,0,0,0.4); transition: all 0.3s;
+        }
+        .pause-btn:hover { transform: translateY(-5px); box-shadow: 0 15px 25px rgba(255,50,0,0.5); }
+
+        /* SEMÁFORO Y GAME OVER */
+        #semaforo {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-family: 'Arial Black', sans-serif; font-size: 180px; font-weight: 900;
+            z-index: 500; pointer-events: none; text-shadow: 0 0 20px rgba(0,0,0,0.8); display: none;
+        }
+        .anim-pop { animation: popNumber 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popNumber {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+        .color-3 { color: #ff0000; text-shadow: 0 0 30px #ff0000; }
+        .color-2 { color: #ff8800; text-shadow: 0 0 30px #ff8800; }
+        .color-1 { color: #ffff00; text-shadow: 0 0 30px #ffff00; }
+        .color-go { color: #00ff00; text-shadow: 0 0 40px #00ff00; }
+
+        #gameover {
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
+            z-index: 2500; display: flex; align-items: center; justify-content: center; opacity: 0;
+            pointer-events: none; transition: opacity 0.5s ease;
+        }
+        #gameover.active { opacity: 1; pointer-events: all; }
+        .gameover-card {
+            background: linear-gradient(135deg, #2b2b2b, #1a1a1a); border: 4px solid #ff3300; border-radius: 20px;
+            padding: 40px 60px; text-align: center; box-shadow: 0 0 50px rgba(255, 51, 0, 0.3);
+            transform: translateY(-50px) scale(0.9); transition: transform 0.5s;
+        }
+        #gameover.active .gameover-card { transform: translateY(0) scale(1); }
+        .go-title {
+            font-family: 'Arial Black', sans-serif; font-size: 60px; margin: 0;
+            background: linear-gradient(to bottom, #ff3300, #ff9900); -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent; text-shadow: 0 5px 15px rgba(255, 60, 0, 0.3);
+        }
+        .score-number { color: white; font-size: 48px; font-weight: bold; }
+        .score-label{font-family: 'Arial Black', sans-serif;
+          font-size: 40px;
+          color:#ffff00;}
+
+        .go-subtitle{font-family: 'Arial Black', sans-serif;
+          font-size: 30px;
+          color:#ffffff;}
+
+        #botonReiniciar {
+            background: linear-gradient(90deg, #ff3300, #ff0000); border: none; padding: 15px 40px; color: white;
+            font-size: 24px; font-weight: bold; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); transition: all 0.3s ease; margin-top: 20px;
+            animation: pulseBtn 2s infinite; pointer-events: auto;
+        }
+        #botonReiniciar:hover { transform: scale(1.1) translateY(-3px); }
+        @keyframes pulseBtn {
+            0% { box-shadow: 0 0 0 0 rgba(255, 50, 0, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 50, 0, 0); }
+        }
+
+        /* UI INTRO */
+        .ui-container { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 3000; pointer-events: none; }
+        .screen {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+            opacity: 0; visibility: hidden; transition: opacity 0.5s ease-out;
+            display: flex; justify-content: center; align-items: center; pointer-events: all;
+        }
+        .screen.active { opacity: 1; visibility: visible; }
+        #portada { z-index: 10; background: transparent; }
+        #portada::before {
+            content: ""; position: absolute; inset: 0; background-image: url("image/portada.png");
+            background-size: 100% 100%; background-position: center; background-repeat: no-repeat;
+        }
+        #portada > div { position: relative; z-index: 2; transform: translateY(120px); }
+        .btn-portada {
+            width: 240px; height: 100px; background-image: url("image/play.png");
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+            border: none; background-color: transparent; cursor: pointer; transition: transform 0.2s;
+        }
+        .btn-portada:hover { transform: scale(1.1); }
+        #fadeToBlack { background: black; z-index: 20; pointer-events: none; }
+        #fadeToBlack.active { opacity: 1; visibility: visible; pointer-events: all; }
+        #tutorial { z-index: 15; overflow: hidden; background: rgba(0,0,0,0.9); }
+        .tutorial-wrapper {
+            display: flex; width: 400%; height: 100%;
+            transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1); transform: translateX(0);
+        }
+        .tutorial-slide {
+            width: 100%; height: 100%; flex-shrink: 0; position: relative;
+            display: flex; justify-content: center; align-items: center;
+            background-size: 100% 100%; background-position: center; background-repeat: no-repeat;
+        }
+        .slide-1 { background-image: url("image/1.jpg"); }
+        .slide-2 { background-image: url("image/2.jpg"); }
+        .slide-3 { background-image: url("image/3.jpg"); }
+        .slide-4 { background-image: url("image/4.jpg"); }
+        .gif-container { position: absolute; left: 15%; bottom: 20%; width: 600px; z-index: 5; filter: drop-shadow(10px 10px 20px rgba(0,0,0,0.8)); }
+        .gif-container img { width: 100%; height: auto; display: block; border-radius: 10px; }
+        .controls {
+            position: absolute; bottom: 50px; width: 100%; display: flex;
+            justify-content: space-between; padding: 0 80px; pointer-events: none; z-index: 30;
+        }
+        .nav-btn {
+            pointer-events: auto; width: 80px; height: 80px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.5);
+            cursor: pointer; position: relative; backdrop-filter: blur(10px); transition: all 0.2s ease-out;
+        }
+        .nav-btn::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+            border-top: 5px solid white; border-right: 5px solid white; transform: translate(-50%, -50%);
+        }
+        #prevBtn::after { transform: translate(-30%, -50%) rotate(-135deg); }
+        #nextBtn::after { transform: translate(-70%, -50%) rotate(45deg); }
+        .nav-btn:hover { background: white; transform: scale(1.15); }
+        .final-btn {
+            padding: 25px 60px; font-size: 2rem; font-weight: 900; color: white;
+            background: linear-gradient(135deg, #ff00cc, #333399); border: 4px solid white;
+            border-radius: 10px; cursor: pointer; box-shadow: 0 0 20px #ff00cc;
+            text-transform: uppercase; transition: all 0.2s; animation: pulse 1.5s infinite alternate;
+        }
+        .final-btn:hover { transform: scale(1.1) rotate(-2deg); background: white; color: #ff00cc; }
+        @keyframes pulse {
+            from { box-shadow: 0 0 10px #ff00cc; }
+            to { box-shadow: 0 0 30px #ff00cc, 0 0 10px white; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div>
+        <canvas id="myCanvas"></canvas>
+        <div id="interfaz" class="oculto">
+            <div id="tesoroTiempo">
+                <div id="miDivdis">Tomates: <span id="puntos" style="opacity: 1;">0</span></div>
+                <div id="miDivTiempo">Tiempo: <span id="cronometro">60</span>s</div>
+            </div>
+        </div>
+        <div id="velocimetro" class="oculto">
+            <div class="velocimetro-circulo">
+                <div class="aguja" id="aguja"></div>
+                <div class="centro"></div>
+                <span class="velocidad-texto" id="velocidadTexto">0</span>
+                <span class="kmh">km/h</span>
+            </div>
+        </div>
+        <div id="semaforo" class="oculto">3</div>
+    </div>
+
+    <div id="gameover">
+        <div class="gameover-card">
+            <h1 class="go-title">¡TIEMPO FUERA!</h1>
+            <div class="go-subtitle">¿Listo para otra carrera?</div>
+            <div class="score-box">
+                <div class="score-label">Tomates Recolectados</div>
+                <div class="score-number" id="finalScore">0</div>
+            </div>
+            <button id="botonReiniciar">Volver a intentar</button>
+        </div>
+    </div>
+
+    <div id="pauseButton" class="oculto"></div>
+
+    <div id="pauseOverlay">
+        <div id="pauseMenu">
+            <h1 class="pause-title">PAUSA</h1>
+            <div class="volume-container">
+                <div>VOLUMEN</div>
+                <input type="range" id="volumeSlider" min="0" max="100" value="100">
+                <div><span id="volumeValue">100</span>%</div>
+            </div>
+            <button class="pause-btn" id="resumeButton">CONTINUAR</button>
+            <button class="pause-btn" id="restartButton">REINICIAR</button>
+        </div>
+    </div>
+
+    <div class="ui-container" id="uiContainer">
+        <div class="screen active" id="portada">
+            <div><button class="btn-portada" id="playBtn"></button></div>
+        </div>
+        <div class="screen" id="fadeToBlack"></div>
+        <div class="screen" id="tutorial">
+            <div class="tutorial-wrapper" id="tutorialWrapper">
+                <div class="tutorial-slide slide-1"><div class="gif-container"><img src="image/gif.gif" alt="Animación"></div></div>
+                <div class="tutorial-slide slide-2"></div>
+                <div class="tutorial-slide slide-3"></div>
+                <div class="tutorial-slide slide-4"><button class="final-btn" id="startGameBtn">COMENZAR</button></div>
+            </div>
+            <div class="controls"><button class="nav-btn" id="prevBtn"></button><button class="nav-btn" id="nextBtn"></button></div>
+        </div>
+    </div>
+
+    <script type="importmap"> 
+        { "imports":{ "three": "./js/three.module.js", "three/OrbitControls": "./js/OrbitControls.js", "three/PositionalAudioHelper": "./js/PositionalAudioHelper.js" } }
+    </script>
+
+    <script type="module"> 
+        // ==========================================
+        // 1. IMPORTS
+        // ==========================================
+        import * as THREE from 'three'; 
+        import {GLTFLoader} from './js/GLTFLoader.js';
+        import {OrbitControls} from 'three/OrbitControls';
+        import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@latest/dist/cannon-es.js';
+        import CannonDebugger from './js/cannon-es-debugger.js';
+        import { PositionalAudioHelper } from 'https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/helpers/PositionalAudioHelper.js';
+
+        // Escenarios
+        import CasaHipe from './js/CasaHipie1.js';
+        import CasaMilitar from './js/CasaMilitar.js';
+        import ConoHotel from './js/ConosHotel.js';
+        import Gasolineria from './js/Gasolineria.js';
+        import casaMate from './js/CasaMate.js';
+        import PiedraG from './js/PiedraGrande.js';
+        import CasaBomber from './js/Bombero.js';
+        import TiendaLlanta from './js/TiendaLLantas.js';
+        import CasaMaestro from './js/CasaMaestro.js';
+        import edificioF from './js/EscenarioFaltante.js';
+        import MateCar from './js/Mate.js';
+        import Arboles from './js/Arbol.js';
+
+        // ==========================================
+        // 2. LÓGICA DE UI (INTRO / PORTADA)
+        // ==========================================
+        const playBtn = document.getElementById('playBtn');
+        const portada = document.getElementById('portada');
+        const fadeToBlack = document.getElementById('fadeToBlack');
+        const tutorial = document.getElementById('tutorial');
+        const tutorialWrapper = document.getElementById('tutorialWrapper');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const startGameBtn = document.getElementById('startGameBtn');
+        const uiContainer = document.getElementById('uiContainer');
+
+        const gameElements = [
+            document.getElementById('interfaz'),
+            document.getElementById('velocimetro'),
+            document.getElementById('pauseButton'),
+            document.getElementById('semaforo')
+        ];
+
+        let slideIndex = 0;
+        const totalSlides = 4;
+
+        playBtn.addEventListener('click', () => {
+            portada.classList.remove('active');
+            fadeToBlack.classList.add('active');
+            init(); // Iniciamos juego detrás
+            slideIndex = 0;
+            updateSlide();
+            setTimeout(() => {
+                fadeToBlack.classList.remove('active');
+                tutorial.classList.add('active');
+            }, 1000);
+        });
+
+        nextBtn.addEventListener('click', () => { if (slideIndex < totalSlides - 1) { slideIndex++; updateSlide(); } });
+        prevBtn.addEventListener('click', () => { if (slideIndex > 0) { slideIndex--; updateSlide(); } });
+        function updateSlide() { tutorialWrapper.style.transform = `translateX(-${slideIndex * 100}%)`; }
+
+        startGameBtn.addEventListener('click', () => {
+            uiContainer.style.opacity = '0';
+            setTimeout(() => { uiContainer.style.display = 'none'; }, 500); 
+            gameElements.forEach(el => el.classList.remove('oculto'));
+            if (window.iniciarCarreraGlobal) { window.iniciarCarreraGlobal(); }
+        });
+
+        // ==========================================
+        // 3. CONFIGURACIÓN BÁSICA DEL JUEGO
+        // ==========================================
+        var renderer = new THREE.WebGLRenderer({canvas: document.getElementById('myCanvas'),antialias: true});
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        var scene = new THREE.Scene();
+        const manager = new THREE.LoadingManager();
+        scene.fog = new THREE.FogExp2(0x96FFFB, 0.004);
+
+        const world = new CANNON.World();
+        world.gravity.set(0, -9.82, 0);
+
+        var camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 3000);
+        camera.position.set(0,4,5);
+        var gc = new THREE.Group();
+        gc.position.set(0, 1, 20);
+        gc.remove(camera);
+
+        var controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        var GridHelper = new THREE.GridHelper(50, 60, 0xcaff33, 0x9033ff);
+        let carreraIniciada = false;
+
+        // ==========================================
+        // 4. FUNCIÓN INIT (CARGA DEL MUNDO)
+        // ==========================================
+        function init() { 
+            
+            // --- Elementos DOM (Dentro del scope para funcionar) ---
+            const pauseButtonEl = document.getElementById('pauseButton');
+            const resumeButtonEl = document.getElementById('resumeButton');
+            const restartButtonEl = document.getElementById('restartButton');
+            const botonReiniciarEl = document.getElementById('botonReiniciar');
+            const pauseOverlayEl = document.getElementById('pauseOverlay');
+            const gameoverEl = document.getElementById('gameover');
+
+            const cannonDebug = new CannonDebugger(scene, world);
+            const groundBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane() });
+            groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); groundBody.position.y=0;
+            world.addBody(groundBody); world.defaultContactMaterial.friction=0;
+
+            // --- Texturas ---
+            const textureLoader = new THREE.TextureLoader(manager);
+            const frontTexture = textureLoader.load('image/ojosMate.jpg');
+            const TexturaPiso = textureLoader.load('./image/TexturaPruebaCarsPiso.jpeg');
+            const TexturaPisoabajo = textureLoader.load('./image/TexturaPruebaCarsPisoAbajo.jpg');
+            const TexturaPisoDer = textureLoader.load('./image/TexturaPruebaCarsPisoderecha.jpg');
+            const TexturaPisoizq = textureLoader.load('./image/TexturaPruebaCarsPisoizquierda.jpg');
+
+            // --- Iluminación ---
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1); scene.add(sunLight);
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4); scene.add(ambientLight);
+
+            function updateDayNight() {
+                dayNightTime += dayNightSpeed;
+                const sunAngle = dayNightTime * Math.PI * 2;
+                sunLight.position.x = Math.cos(sunAngle) * 100;
+                sunLight.position.y = Math.sin(sunAngle) * 50 + 30;
+                sunLight.position.z = Math.sin(sunAngle) * 100;
+                const sunHSL = { h: 0.1 + Math.sin(sunAngle) * 0.1, s: 0.5, l: 0.7 };
+                sunLight.color.setHSL(sunHSL.h, sunHSL.s, sunHSL.l);
+                const dayProgress = (Math.sin(sunAngle) + 1) / 2;
+                sunLight.intensity = 0.3 + dayProgress * 1.5;
+                ambientLight.intensity = 0.2 + dayProgress * 0.6;
+                const skyProgress = Math.max(0, dayProgress - 0.2);
+                scene.background = new THREE.Color().setHSL(0.55, 0.5, skyProgress * 0.4);
+                scene.fog.color.setHSL(0.55 + (1 - dayProgress) * 0.1, 0.4, 0.5 + dayProgress * 0.2);
+            }
+
+            // ///// SUELO (PISOS) /////
+            // -- Centro --
+            const geometry = new THREE.PlaneGeometry(400, 500);
+            const materialGeo = new THREE.MeshLambertMaterial({ map: TexturaPiso });
+            const piso = new THREE.Mesh(geometry, materialGeo);
+            piso.rotation.x = -Math.PI / 2;
+            piso.position.y = -1;
+            scene.add(piso);
+
+            // -- Abajo --
+            const geometry2 = new THREE.PlaneGeometry(400, 500);
+            const materialGeo2 = new THREE.MeshLambertMaterial({ map: TexturaPisoabajo });
+            const pisoabajo = new THREE.Mesh(geometry2, materialGeo2);
+            pisoabajo.rotation.x = -Math.PI / 2;
+            pisoabajo.position.set(0, -1, 500);
+            scene.add(pisoabajo);
+
+            // -- Derecha --
+            const geometry3 = new THREE.PlaneGeometry(400, 500);
+            const materialGeo3 = new THREE.MeshLambertMaterial({ map: TexturaPisoDer });
+            const pisoder = new THREE.Mesh(geometry3, materialGeo3);
+            pisoder.rotation.x = -Math.PI / 2;
+            pisoder.position.set(400, -1, 0);
+            scene.add(pisoder);
+
+            // -- Izquierda --
+            const geometry4 = new THREE.PlaneGeometry(400, 500);
+            const materialGeo4 = new THREE.MeshLambertMaterial({ map: TexturaPisoizq });
+            const pisoizq = new THREE.Mesh(geometry4, materialGeo4);
+            pisoizq.rotation.x = -Math.PI / 2;
+            pisoizq.position.set(-400, -1, 0);
+            scene.add(pisoizq);
+
+            var materialB = new THREE.MeshLambertMaterial({color:0xf5eba6});
+            const pisoizqA = new THREE.Mesh(geometry4, materialB); 
+            pisoizqA.rotation.x = -Math.PI / 2; 
+            pisoizqA.position.set(-400,-1,500); scene.add(pisoizqA);
+
+            var materialB = new THREE.MeshLambertMaterial({color:0xf5eba6});
+            const pisoderA = new THREE.Mesh(geometry4, materialB); 
+            pisoderA.rotation.x = -Math.PI / 2; 
+            pisoderA.position.set(400,-1,500); scene.add(pisoderA);
+
+            // ///// ESCENARIOS /////
+            const Arbol = Arboles({x:0, y:-10, z:0, world: world}); 
+            scene.add(Arbol);
+
+            const caHipe = CasaHipe({ x: 19, y: -1, z: 39, world: world }); 
+            caHipe.scale.set(4, 4, 4); 
+            scene.add(caHipe);
+
+            const CaMilitar = CasaMilitar({ x: 75, y: -5, z: 100, world: world }); 
+            CaMilitar.scale.set(3, 3, 3); 
+            CaMilitar.rotation.set(0,-Math.PI/2,0); 
+            scene.add(CaMilitar);
+
+            const datosConos = [{ x: -110, z: 75 }, { x: -100, z: 108 }, { x: -100, z: 43 }, { x: -75, z: 28 }, { x: -75, z: 124 }, { x: -40, z: 28 }, { x: -40, z: 124 }];
+            datosConos.forEach(dato => { 
+                const hotel = ConoHotel({ x: dato.x, y: 0, z: dato.z, rotation: Math.PI / 2, world: world }); 
+                hotel.scale.set(2, 2, 2); 
+                scene.add(hotel); 
+            });
+
+            const Gasolinera = Gasolineria({ x: 110, y: 0, z: -5, world: world }); 
+            Gasolinera.scale.set(1.5 , 2, 1.5); 
+            scene.add(Gasolinera);
+
+            const casaMat = casaMate({ x: -80, y: 0, z: 170, world: world }); 
+            scene.add(casaMat); 
+            casaMat.scale.set(0.3, 0.3, 0.3); 
+            casaMat.rotation.set(0, Math.PI / 2,0);
+
+            const Piedra = PiedraG({ x: 0, y: 0, z: -250, world: world }); 
+            scene.add(Piedra); 
+            Piedra.scale.set(5, 5, 5);
+
+            const bombero1 = CasaBomber({ x: 0, y: -6, z: -150 , world: world}); 
+            scene.add(bombero1); 
+            bombero1.scale.set(0.7, 0.8, 0.7);
+
+            const tienda = TiendaLlanta({ x: -70, y: 1, z: -120, world: world }); 
+            scene.add(tienda); 
+            tienda.scale.set(1.5, 1.5, 1.5);
+
+            const master = CasaMaestro({ x: 70, y: -2, z: 45, world: world }); 
+            scene.add(master); 
+            master.scale.set(3, 3, 4);
+
+            const Edifico = edificioF({ x: 50, y: -9, z: -100, world: world }); 
+            scene.add(Edifico); 
+            Edifico.scale.set(1.2, 1.2, 1.2);
+
+            // ==========================================
+            // CONSTRUCCIÓN DEL COCHE (MATE)
+            // ==========================================
+            
+            // ///// ESTRUCTURA BASE /////
+            var base = new THREE.BoxGeometry(2,1,2); 
+            var material = new THREE.MeshLambertMaterial({color:0x854E3A}); 
+            var Mesh01 = new THREE.Mesh(base,material);
+
+            var base1 = new THREE.BoxGeometry(2,1,1); 
+            var faroM = new THREE.MeshLambertMaterial({color:0x734232}); 
+            var Mesh02 = new THREE.Mesh(base1,faroM); 
+            Mesh02.position.set(0,1,-0.5);
+
+            var base3 = new THREE.BoxGeometry(2,1,2); 
+            var Mesh11 = new THREE.Mesh(base3,material); 
+            Mesh11.position.set(0,0,-2);
+
+            // ///// OJOS /////
+            const materials = [ 
+                new THREE.MeshBasicMaterial({ color: 0x734232 }), 
+                new THREE.MeshBasicMaterial({ color: 0x734232 }), 
+                new THREE.MeshBasicMaterial({ color: 0x734232 }), 
+                new THREE.MeshBasicMaterial({ color: 0xffffff }), 
+                new THREE.MeshBasicMaterial({ map: frontTexture }), 
+                new THREE.MeshBasicMaterial({ color: 0xffffff })
+            ];
+            var Ojo1 = new THREE.BoxGeometry(1.8,1,1); 
+            var Mesh03 = new THREE.Mesh(Ojo1,materials); 
+            Mesh03.position.set(0,0.8,-0.4);
+
+            // ///// FAROS /////
+            var Faro1 = new THREE.CylinderGeometry(0.2,0.2,4.1,8); 
+            var mesh04 = new THREE.Mesh(Faro1,faroM); 
+            mesh04.position.set(0.9,0.5,-1); 
+            mesh04.rotation.x = Math.PI/2;
+
+            var Faro2 = new THREE.CylinderGeometry(0.2,0.2,4.1,8); 
+            var mesh05 = new THREE.Mesh(Faro2,faroM); 
+            mesh05.position.set(-0.9,0.5,-1); 
+            mesh05.rotation.x = Math.PI/2;
+
+            // ///// FOCOS /////
+            var Foco1 = new THREE.SphereGeometry(0.15,10,10); 
+            var foco1 = new THREE.MeshLambertMaterial({color:0xF4D80B}); 
+            var mesh06 = new THREE.Mesh(Foco1,foco1); 
+            mesh06.position.set(-0.9,0.5,1);
+
+            var Foco2 = new THREE.SphereGeometry(0.15,10,10); 
+            var foco2 = new THREE.MeshLambertMaterial({color:0x513224}); 
+            var mesh07 = new THREE.Mesh(Foco2,foco2); 
+            mesh07.position.set(0.9,0.5,1);
+
+            var Foco3 = new THREE.SphereGeometry(0.15,10,10); 
+            var foco3 = new THREE.MeshLambertMaterial({color:0xFF0028}); 
+            var mesh13 = new THREE.Mesh(Foco3,foco3); 
+            mesh13.position.set(-0.9,0.5,-3);
+
+            var Foco4 = new THREE.SphereGeometry(0.15,10,10); 
+            var mesh14 = new THREE.Mesh(Foco4,foco3); 
+            mesh14.position.set(0.9,0.5,-3);
+
+            // ///// MOTOR /////
+            var Motor2 = new THREE.CylinderGeometry(0.2,0.4,0.5,8); 
+            var Foco4Mat = new THREE.MeshLambertMaterial({color:0xFF9400}); 
+            var mesh20 = new THREE.Mesh(Motor2,Foco4Mat); 
+            mesh20.position.set(0,1.5,-0.5); 
+            scene.add(mesh20);
+
+            var Bomba1 = new THREE.BoxGeometry(0.6,0.2,0.4); 
+            var materialBom = new THREE.MeshLambertMaterial({color:0x175F09}); 
+            var Mesh15 = new THREE.Mesh(Bomba1,materialBom); 
+            Mesh15.position.set(0,0.8,0.5);
+
+            var Motor = new THREE.CylinderGeometry(0.4,0.4,0.5,8); 
+            var MotorM = new THREE.MeshLambertMaterial({color:0x513224}); 
+            var mesh08 = new THREE.Mesh(Motor,MotorM); 
+            mesh08.position.set(0,0.5,0.5);
+
+            // ///// LUCES PUNTO /////
+            var luz1 = new THREE.PointLight(0xffffff,3,2); 
+            luz1.position.set(-0.9,0.5,1.5);
+
+            var luz2 = new THREE.PointLight(0xA10000,3,2); 
+            luz2.position.set(-0.9,0.5,-3.5);
+
+            var luz3 = new THREE.PointLight(0xA10000,3,2); 
+            luz3.position.set(0.9,0.5,-3.5);
+
+            var luz4 = new THREE.PointLight(0xFF9400,3,2); 
+            luz4.position.set(0,2,-0.5);
+
+            // ///// LLANTAS /////
+            var Llanta1 = new THREE.CylinderGeometry(0.5,0.5,0.5,30); 
+            var LlantaM1 = new THREE.MeshLambertMaterial({color:0x513224});
+
+            var mesh09 = new THREE.Mesh(Llanta1,LlantaM1); 
+            mesh09.position.set(0.9,-0.3,-0.3); 
+            mesh09.rotation.z = Math.PI/2;
+
+            var mesh10 = new THREE.Mesh(Llanta1,LlantaM1); 
+            mesh10.position.set(-0.9,-0.3,-0.3); 
+            mesh10.rotation.z = Math.PI/2;
+
+            var mesh11 = new THREE.Mesh(Llanta1,LlantaM1); 
+            mesh11.position.set(0.9,-0.3,-2); 
+            mesh11.rotation.z = Math.PI/2;
+
+            var mesh12 = new THREE.Mesh(Llanta1,LlantaM1); 
+            mesh12.position.set(-0.9,-0.3,-2); 
+            mesh12.rotation.z = Math.PI/2;
+
+            // ///// AGRUPACIÓN MATE /////
+            var mate10 = new THREE.Group(); 
+            mate10.add(mesh20,luz4,luz1,luz2,luz3,Mesh01,Mesh02,Mesh03,mesh04,mesh05,mesh06,mesh07,mesh08,mesh09,mesh10,Mesh11,mesh11,mesh12,mesh13,mesh14,Mesh15);
+            mate10.position.set(0,0,1.1); 
+            mate10.rotation.y = Math.PI;
+
+            var mate1 = new THREE.Group (); 
+            mate1.add(gc,mate10); 
+            mate1.position.set(0,0,1.1); 
+            scene.add(mate1);
+
+            var Bocina1 = new THREE.BoxGeometry(5,5,5); 
+            var bocinaM = new THREE.MeshLambertMaterial({ color: 0x854E3A, transparent: true, opacity: 0 }); 
+            var meshb = new THREE.Mesh(Bocina1,bocinaM); 
+            scene.add(meshb);
+
+            var mate = new THREE.Group(); 
+            mate.position.y=5; 
+            mate.rotation.y=3.14159; 
+            mate.add(mate1);
+
+            // ///// FÍSICAS COCHE /////
+            const boxbody = new CANNON.Body({ 
+                mass: 1, 
+                shape: new CANNON.Box(new CANNON.Vec3(1.1, 0.8, 2)), 
+                position: new CANNON.Vec3(0, 2, 0), 
+                linearDamping: 0.4, 
+                angularDamping: 0.9 
+            });
+            world.addBody(boxbody);
+
+            mate.position.set(0, 2, 0); 
+            mate.quaternion.set(0, 0, 0, 1); 
+            boxbody.position.copy(mate.position); 
+            boxbody.quaternion.copy(mate.quaternion); 
+            scene.add(mate);
+
+            function aplicaFisicaAGrafico() { 
+                mate.position.copy(boxbody.position); 
+                mate.quaternion.copy(boxbody.quaternion); 
+            }
+
+            // ///// CONTROLES /////
+            const moveSpeed = 20; 
+            const rotationSpeed = 5; 
+            const keys = {};
+            window.addEventListener('keydown', (event) => { keys[event.code] = true; });
+            window.addEventListener('keyup', (event) => { keys[event.code] = false; });
+
+            const maxSpeed = 40; const acceleration = 0.3; const deceleration = 0.15; const brakeForce = 0.6;
+            let currentSpeed = 0; let targetSpeed = 0; let currentRotation = Math.PI; let angularVelocity = 0;
+            const ANGULAR_ACCEL = 0.05; const ANGULAR_DAMPING = 0.9; const MAX_ANGULAR = 2.8;
+
+            function animateCar() { 
+                if (!carreraIniciada) { currentSpeed = 0; targetSpeed = 0; angularVelocity = 0; return; }
+                if (keys['KeyW'] || keys['ArrowUp']) { targetSpeed = maxSpeed; }
+                else if (keys['KeyS'] || keys['ArrowDown']) {
+                    if (currentSpeed > 0) { targetSpeed = 0; currentSpeed = Math.max(currentSpeed - brakeForce, 0); } else { targetSpeed = -maxSpeed * 0.5; }
+                } else { targetSpeed = 0; }
+                if (currentSpeed < targetSpeed) currentSpeed = Math.min(currentSpeed + acceleration, targetSpeed);
+                else if (currentSpeed > targetSpeed) currentSpeed = Math.max(currentSpeed - deceleration, targetSpeed);
+                let desiredAngular = 0;
+                if (keys['KeyA'] || keys['ArrowLeft']) desiredAngular = MAX_ANGULAR;
+                if (keys['KeyD'] || keys['ArrowRight']) desiredAngular = -MAX_ANGULAR;
+                angularVelocity += (desiredAngular - angularVelocity) * ANGULAR_ACCEL; angularVelocity *= ANGULAR_DAMPING;
+                const speedFactor = Math.max(Math.abs(currentSpeed) / maxSpeed, 0.25); currentRotation += angularVelocity * speedFactor * 0.05;
+                const quaternion = new THREE.Quaternion(); quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), currentRotation); boxbody.quaternion.copy(quaternion);
+                const moveDir = new THREE.Vector3(0, 0, -1).applyQuaternion(boxbody.quaternion);
+                boxbody.velocity.x = moveDir.x * currentSpeed; boxbody.velocity.z = moveDir.z * currentSpeed; boxbody.angularVelocity.x = 0; boxbody.angularVelocity.z = 0;
+            }
+
+            // ///// PAREDES INVISIBLES /////
+            const muroNorte = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(250, 20, 10)), position: new CANNON.Vec3(0, 10, 260) }); world.addBody(muroNorte);
+            const muroSur = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(250, 20, 10)), position: new CANNON.Vec3(0, 10, -260) }); world.addBody(muroSur);
+            const muroEste = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(10, 20, 270)), position: new CANNON.Vec3(210, 10, 0) }); world.addBody(muroEste);
+            const muroOeste = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(10, 20, 270)), position: new CANNON.Vec3(-210, 10, 0) }); world.addBody(muroOeste);
+
+            // ///// EFECTOS LÍMITES /////
+            const wireMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: false, transparent: true, opacity: 0 });
+            function createGlowTexture() {
+                const canvas = document.createElement('canvas'); canvas.width = canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+                grad.addColorStop(0.0, 'rgba(255, 20, 60, 1)'); grad.addColorStop(0.4, 'rgba(255, 60, 100, 0.6)'); grad.addColorStop(0.7, 'rgba(255, 100, 140, 0.3)'); grad.addColorStop(1.0, 'transparent');
+                ctx.fillStyle = grad; ctx.fillRect(0, 0, 512, 512); return new THREE.CanvasTexture(canvas);
+            }
+            const glowTexture = createGlowTexture();
+            const glowMaterial = new THREE.MeshBasicMaterial({ map: glowTexture, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, side: THREE.FrontSide });
+            const glowNorte = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), glowMaterial.clone()); glowNorte.position.set(0, 10, 258); glowNorte.rotation.y = Math.PI; scene.add(glowNorte);
+            const glowSur = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), glowMaterial.clone()); glowSur.position.set(0, 10, -258); glowSur.rotation.y = 0; scene.add(glowSur);
+            const glowEste = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), glowMaterial.clone()); glowEste.position.set(208, 10, 0); glowEste.rotation.y = -Math.PI / 2; scene.add(glowEste);
+            const glowOeste = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), glowMaterial.clone()); glowOeste.position.set(-208, 10, 0); glowOeste.rotation.y = Math.PI / 2; scene.add(glowOeste);
+
+            function actualizarGlowLimites() {
+                const p = mate.position; const DIST = 40;
+                const distN = 260 - p.z; if (distN > 0 && distN < DIST) { glowNorte.position.x = p.x; glowNorte.position.y = p.y + 5; glowNorte.material.opacity = 1.0 * (1 - distN / DIST); glowNorte.scale.setScalar(0.8 + distN * 0.04); } else glowNorte.material.opacity = 0;
+                const distS = p.z + 260; if (distS > 0 && distS < DIST) { glowSur.position.x = p.x; glowSur.position.y = p.y + 5; glowSur.material.opacity = 1.0 * (1 - distS / DIST); glowSur.scale.setScalar(0.8 + distS * 0.04); } else glowSur.material.opacity = 0;
+                const distE = 210 - p.x; if (distE > 0 && distE < DIST) { glowEste.position.z = p.z; glowEste.position.y = p.y + 5; glowEste.material.opacity = 1.0 * (1 - distE / DIST); glowEste.scale.setScalar(0.8 + distE * 0.04); } else glowEste.material.opacity = 0;
+                const distO = p.x + 210; if (distO > 0 && distO < DIST) { glowOeste.position.z = p.z; glowOeste.position.y = p.y + 5; glowOeste.material.opacity = 1.0 * (1 - distO / DIST); glowOeste.scale.setScalar(0.8 + distO * 0.04); } else glowOeste.material.opacity = 0;
+            }
+
+            // ///// ANIMACIONES Y AUDIO /////
+            var clock = new THREE.Clock();
+            const dayNightSpeed = 0.0003; let dayNightTime = 1;
+            renderer.setClearColor(0x000000); scene.background = new THREE.Color(0x87CEEB);
+            var velocidad = 1; var velocidadf = 5; var amplitud = 0.2;
+            function luces_focos(){
+                luz1.intensity = (Math.cos(clock.getElapsedTime()*velocidadf)*0.5)+0.5; luz2.intensity = (Math.cos(clock.getElapsedTime()*velocidadf)*0.5)+0.5;
+                luz3.intensity = (Math.cos(clock.getElapsedTime()*velocidadf)*-0.5)+0.5; luz4.intensity = (Math.cos(clock.getElapsedTime()*velocidadf)*-0.5)+0.5;
+                foco1.opacity = (Math.cos(clock.getElapsedTime()*velocidadf)*0.5)+1; foco2.opacity = (Math.cos(clock.getElapsedTime()*velocidadf)*0.5)+1; foco3.opacity = (Math.cos(clock.getElapsedTime()*velocidadf)*-0.5)+1;
+            }
+
+            const listener = new THREE.AudioListener(); mate1.add( listener );
+            const sound = new THREE.PositionalAudio( listener );
+            const audioLoader = new THREE.AudioLoader(manager);
+            audioLoader.load( './Sonido uwu/Cars.mp3', function( buffer ) { sound.setBuffer( buffer ); sound.setLoop( true ); sound.setRefDistance( 200); sound.setVolume( 1 ); sound.play();});
+            sound.setDirectionalCone( 360, 230, .1 );
+            var helper = new PositionalAudioHelper( sound, 12 , 18, 4); meshb.add(sound);
+
+            // ==========================================
+            // SISTEMA DE PAUSA (CONECTADO)
+            // ==========================================
+            let isPaused = false; let animationId = null;
+            const volumeSlider  = document.getElementById('volumeSlider');
+            const volumeValue   = document.getElementById('volumeValue');
+            volumeSlider.addEventListener('input', e => { sound.setVolume(e.target.value / 100); volumeValue.textContent = e.target.value; });
+
+            function startLoop() { if (animationId === null && !isPaused && !juegoTerminado) { animationId = requestAnimationFrame(render); } }
+            function stopLoop() { if (animationId !== null) { cancelAnimationFrame(animationId); animationId = null; } }
+
+            function togglePause() {
+                if (juegoTerminado) return;
+                isPaused = !isPaused;
+                
+                if (isPaused) { 
+                    pauseOverlayEl.classList.add('active'); // Mostrar menú
+                    tiempoInicioPausa = clock.getElapsedTime(); 
+                    if (sound.isPlaying) sound.pause(); 
+                    stopLoop(); 
+                }
+                else { 
+                    pauseOverlayEl.classList.remove('active'); // Ocultar menú
+                    tiempoPausadoAcumulado += clock.getElapsedTime() - tiempoInicioPausa; 
+                    if (!sound.isPlaying) sound.play(); 
+                    startLoop(); 
+                }
+            }
+            let tiempoInicioPausa = 0;
+            
+            // CONEXIÓN DE EVENTOS
+            pauseButtonEl.addEventListener('click', togglePause);
+            resumeButtonEl.addEventListener('click', togglePause);
+
+            // ///// GENERADOR DE TOMATES /////
+            const clonesTomates = [];
+            const loader = new GLTFLoader(manager);
+            const limites = { xMin: -180, xMax: 180, zMin: -230, zMax: 230 };
+            function generarPosicionSegura() {
+                let pos; let seguro = false;
+                while (!seguro) {
+                    pos = new THREE.Vector3(THREE.MathUtils.randFloat(limites.xMin, limites.xMax), 0, THREE.MathUtils.randFloat(limites.zMin, limites.zMax));
+                    const zonasProhibidas = [{ x: 19, z: 39, r: 20 }, { x: 75, z: 100, r: 25 }, { x: -110, z: 75, r: 25 }, { x: 110, z: -5, r: 25 }, { x: -80, z: 170, r: 25 }, { x: 0, z: -150, r: 25 }, { x: -70, z: -120, r: 25 }, { x: 70, z: 45, r: 25 }, { x: 50, z: -100, r: 25 }];
+                    seguro = zonasProhibidas.every(z => { const dx = pos.x - z.x; const dz = pos.z - z.z; return Math.sqrt(dx * dx + dz * dz) > z.r; });
+                    if (seguro) seguro = clonesTomates.every(t => pos.distanceTo(t.tomate.position) > 10);
+                }
+                return pos;
+            }
+            loader.load('./modelos/tomato.glb', (gltf) => {
+                const modeloBase = gltf.scene; modeloBase.scale.set(40, 40, 40);
+                for (let i = 0; i < 10; i++) {
+                    const clone = modeloBase.clone(); const luz = new THREE.PointLight(0xD12A08, 4, 9);
+                    const pos = generarPosicionSegura(); clone.position.copy(pos); luz.position.set(pos.x, pos.y + 4, pos.z); clone.userData.offset = Math.random() * Math.PI * 2;
+                    clonesTomates.push({ tomate: clone, luz }); scene.add(clone); scene.add(luz);
+                }
+            });
+
+            let puntos = 0; const elemento_puntos = document.getElementById('puntos');
+            function puntosuma() {
+                if (juegoTerminado) return;
+                const carrobox = new THREE.Box3().setFromObject(mate1);
+                clonesTomates.forEach((obj) => {
+                    const tBox = new THREE.Box3().setFromObject(obj.tomate);
+                    if (carrobox.intersectsBox(tBox)) {
+                        puntos++; elemento_puntos.textContent = puntos;
+                        const nuevaPos = generarPosicionSegura(); obj.tomate.position.copy(nuevaPos); obj.luz.position.set(nuevaPos.x, nuevaPos.y + 4, nuevaPos.z);
+                    }
+                });
+            }
+            const velocidadT = 3; const amplitudT = 0.5;
+            function animateTomates() {
+                const elapsed = clock.getElapsedTime();
+                clonesTomates.forEach(({ tomate, luz }) => { const y = Math.sin(elapsed * velocidadT + tomate.userData.offset) * amplitudT; tomate.position.y = y; luz.position.y = y + 4; });
+            }
+
+            let tiempoInicio = 0; let tiempoPausadoAcumulado = 0; let tiempoTotal = 60; let juegoTerminado = false; 
+            const elemento_crono = document.getElementById('cronometro');
+
+            function iniciarCronometro() {
+                tiempoInicio = clock.getElapsedTime(); tiempoPausadoAcumulado = 0; juegoTerminado = false;
+                gameoverEl.classList.remove('active');
+            }
+            function actualizarCronometro() {
+                if (isPaused || juegoTerminado || !carreraIniciada) return;
+                const ahora = clock.getElapsedTime(); const transcurrido = ahora - tiempoInicio - tiempoPausadoAcumulado;
+                const restante = Math.max(0, tiempoTotal - transcurrido); elemento_crono.textContent = Math.ceil(restante);
+                if (restante <= 0) {
+                    juegoTerminado = true;
+                    const finalScoreSpan = document.getElementById('finalScore');
+                    if(finalScoreSpan) finalScoreSpan.textContent = puntos; 
+                    gameoverEl.classList.add('active'); // Mostrar Game Over
+                }
+            }
+
+            const clonesRayos = []; const loader2 = new GLTFLoader(manager);
+            const limitesRayo = { xMin: -180, xMax: 180, zMin: -230, zMax: 230 };
+            function generarPosicionSeguraRayo() {
+                let pos; let seguro = false;
+                while (!seguro) {
+                    pos = new THREE.Vector3(THREE.MathUtils.randFloat(limitesRayo.xMin, limitesRayo.xMax), 0, THREE.MathUtils.randFloat(limitesRayo.zMin, limitesRayo.zMax));
+                    seguro = clonesRayos.every(r => pos.distanceTo(r.rayo.position) > 20);
+                }
+                return pos;
+            }
+            
+            // ///// SISTEMA DE CARRERA /////
+            function iniciarCuentaRegresiva() {
+                const semaforoDiv = document.getElementById('semaforo');
+                let cuenta = 3;
+                semaforoDiv.classList.remove('oculto'); semaforoDiv.style.display = 'block'; semaforoDiv.textContent = '3'; semaforoDiv.className = 'anim-pop color-3';
+                const intervalo = setInterval(() => {
+                    cuenta--; semaforoDiv.classList.remove('anim-pop'); void semaforoDiv.offsetWidth; semaforoDiv.classList.add('anim-pop');
+                    if (cuenta === 2) { semaforoDiv.textContent = '2'; semaforoDiv.className = 'anim-pop color-2'; }
+                    else if (cuenta === 1) { semaforoDiv.textContent = '1'; semaforoDiv.className = 'anim-pop color-1'; }
+                    else if (cuenta === 0) {
+                        semaforoDiv.textContent = 'YA!'; semaforoDiv.className = 'anim-pop color-go';
+                        carreraIniciada = true; iniciarCronometro();
+                        setTimeout(() => { semaforoDiv.style.display = 'none'; clearInterval(intervalo); }, 1000);
+                    }
+                }, 1000);
+            }
+
+            // Exponer función globalmente
+            window.iniciarCarreraGlobal = iniciarCuentaRegresiva;
+
+            function reiniciarJuego() {
+                puntos = 0; elemento_puntos.textContent = "0"; 
+                juegoTerminado = false; 
+                carreraIniciada = false; 
+                isPaused = false; 
+                controls.enabled = true;
+                
+                currentSpeed = 0; targetSpeed = 0; angularVelocity = 0;
+                keys['KeyW'] = false; keys['KeyS'] = false; keys['ArrowUp'] = false; keys['ArrowDown'] = false;
+                
+                if (sound) { if (sound.isPlaying) sound.stop(); sound.play(); }
+                
+                tiempoPausadoAcumulado = 0; tiempoTotal = 60; elemento_crono.textContent = 60;
+                
+                const inicioPos = new CANNON.Vec3(0, 2, 0); const inicioRot = new CANNON.Quaternion(0, 0, 0, 1);
+                mate.position.copy(inicioPos); mate.quaternion.copy(inicioRot);
+                boxbody.position.copy(inicioPos); boxbody.quaternion.copy(inicioRot); boxbody.velocity.set(0, 0, 0); boxbody.angularVelocity.set(0, 0, 0);
+                
+                clonesTomates.forEach(obj => { const nuevaPos = generarPosicionSegura(); obj.tomate.position.copy(nuevaPos); obj.tomate.position.y = 0; obj.luz.position.set(nuevaPos.x, nuevaPos.y + 4, nuevaPos.z); });
+                if (typeof clonesRayos !== 'undefined') { clonesRayos.forEach(obj => { const nuevaPos = generarPosicionSeguraRayo(); obj.rayo.position.copy(nuevaPos); obj.rayo.position.y = -1; }); }
+                
+                gameoverEl.classList.remove('active'); 
+                pauseOverlayEl.classList.remove('active');
+                
+                if (animationId !== null) cancelAnimationFrame(animationId); 
+                animationId = requestAnimationFrame(render);
+                
+                iniciarCuentaRegresiva();
+            }
+            
+            // CONEXIÓN DE EVENTOS
+            botonReiniciarEl.addEventListener('click', reiniciarJuego);
+            restartButtonEl.addEventListener('click', reiniciarJuego);
+
+            loader2.load('./modelos/rayo.glb', (gltf) => {
+                const modeloBase = gltf.scene; modeloBase.scale.set(0.5, 0.5, 0.5);
+                const box = new THREE.Box3().setFromObject(modeloBase); const size = box.getSize(new THREE.Vector3()); const center = box.getCenter(new THREE.Vector3()); modeloBase.position.y -= center.y - size.y / 2;
+                modeloBase.traverse((child) => { if (child.isMesh) { child.material.color.set(0xffff00); child.material.emissive = new THREE.Color(0xffff00); } });
+                for (let i = 0; i < 6; i++) {
+                    const clone = modeloBase.clone(); const pos = generarPosicionSeguraRayo(); clone.position.copy(pos); clone.position.y = -1;
+                    clone.userData = { offsetX: Math.random() * Math.PI * 2, offsetZ: Math.random() * Math.PI * 2, rotSpeed: 1 + Math.random() * 2, sinSpeed: 1 + Math.random(), collisionBox: new THREE.Box3(new THREE.Vector3(-size.x/2, 0.5, -size.z/2), new THREE.Vector3(size.x/2, 2.0, size.z/2)) };
+                    clonesRayos.push({ rayo: clone }); scene.add(clone);
+                }
+            });
+
+            // ///// LOOP PRINCIPAL /////
+            function render() {
+                if (isPaused || juegoTerminado) { animationId = requestAnimationFrame(render); return; }
+                const velocidadActual = Math.round(Math.abs(currentSpeed) * 3.6); document.getElementById('velocidadTexto').textContent = velocidadActual;
+                const angulo = (velocidadActual / 180) * 180 - 90; document.getElementById('aguja').style.transform = `translateX(-50%) rotate(${angulo}deg)`;
+                const offset = new THREE.Vector3(0, 5, 30); offset.applyQuaternion(mate.quaternion); offset.add(mate.position);
+                camera.position.lerp(offset, 0.9); camera.lookAt(mate.position);
+                animateTomates();
+                const tiempo = clock.getElapsedTime();
+                clonesRayos.forEach((obj) => {
+                    const r = obj.rayo; const data = r.userData; r.position.x += Math.sin(tiempo * data.sinSpeed + data.offsetX) * 0.02; r.position.z += Math.cos(tiempo * data.sinSpeed + data.offsetZ) * 0.02; r.rotation.y += 0.05 * data.rotSpeed;
+                });
+                if (!juegoTerminado) {
+                    const carrobox = new THREE.Box3().setFromObject(mate1);
+                    clonesRayos.forEach(obj => {
+                        const rayo = obj.rayo; const worldPos = new THREE.Vector3(); rayo.getWorldPosition(worldPos); const collisionBox = rayo.userData.collisionBox.clone(); collisionBox.translate(worldPos);
+                        if (carrobox.intersectsBox(collisionBox)) { tiempoTotal += 5; const nuevaPos = generarPosicionSeguraRayo(); rayo.position.copy(nuevaPos); rayo.position.y = -1; }
+                    });
+                }
+                actualizarCronometro(); puntosuma(); luces_focos(); aplicaFisicaAGrafico(); world.step(1 / 60); animateCar(); updateDayNight(); actualizarGlowLimites();
+                renderer.render(scene, camera); animationId = requestAnimationFrame(render);
+            }
+
+            manager.onLoad = function ( ) {
+                console.log( '¡Carga completa!' );
+                animationId = requestAnimationFrame(render); 
+            };
+            
+        } // CIERRE INIT
+    </script>
+</body>
+</html>
